@@ -1,0 +1,53 @@
+name: Build Windows EXE
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-2019
+    strategy:
+      matrix:
+        python-version: [3.8.10]
+        architecture: [x64]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          architecture: ${{ matrix.architecture }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-win.txt
+          pip install pyinstaller
+
+      - name: Verify dependencies
+        run: |
+          python -c "import PyQt5; print(f'PyQt5: {PyQt5.QtCore.PYQT_VERSION_STR}')"
+          python -c "import flask; print(f'Flask: {flask.__version__}')"
+          python -c "import PyQt5.QtWebEngineWidgets; print('WebEngine: OK')"
+
+      - name: Build EXE
+        run: pyinstaller pharmacy.spec --clean --noconfirm
+
+      - name: Upload EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: pharmacy-system-win7-x64
+          path: dist/药房进货比较系统.exe
+          retention-days: 30
+
+      - name: Build summary
+        run: |
+          echo "## 构建完成" >> $env:GITHUB_STEP_SUMMARY
+          echo "- Python: ${{ matrix.python-version }}" >> $env:GITHUB_STEP_SUMMARY
+          echo "- 架构: ${{ matrix.architecture }}" >> $env:GITHUB_STEP_SUMMARY
+          echo "- 产物: 药房进货比较系统.exe" >> $env:GITHUB_STEP_SUMMARY
+          echo "- 兼容: Windows 7 / 8 / 10 / 11" >> $env:GITHUB_STEP_SUMMARY
