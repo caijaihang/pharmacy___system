@@ -15,6 +15,18 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate version number
+        id: version
+        shell: bash
+        run: |
+          DATE=$(date +%Y%m%d)
+          COUNT=$(git rev-list --count HEAD)
+          VERSION="v1.0.${COUNT}-${DATE}"
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "TAG=v1.0.${COUNT}" >> $GITHUB_OUTPUT
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -24,7 +36,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
+          python -m pip install --upgrade pip setuptools wheel
           pip install -r requirements-win.txt
           pip install pyinstaller
 
@@ -37,17 +49,26 @@ jobs:
       - name: Build EXE
         run: pyinstaller pharmacy.spec --clean --noconfirm
 
-      - name: Upload EXE
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: pharmacy-system-win7-x64
           path: dist/药房进货比较系统.exe
-          retention-days: 30
+          retention-days: 7
 
-      - name: Build summary
-        run: |
-          echo "## 构建完成" >> $env:GITHUB_STEP_SUMMARY
-          echo "- Python: ${{ matrix.python-version }}" >> $env:GITHUB_STEP_SUMMARY
-          echo "- 架构: ${{ matrix.architecture }}" >> $env:GITHUB_STEP_SUMMARY
-          echo "- 产物: 药房进货比较系统.exe" >> $env:GITHUB_STEP_SUMMARY
-          echo "- 兼容: Windows 7 / 8 / 10 / 11" >> $env:GITHUB_STEP_SUMMARY
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.TAG }}
+          name: "药房进货比较系统 ${{ steps.version.outputs.TAG }}"
+          body: |
+            ## 药房进货比较系统 - Windows 桌面版
+            - 双击 `药房进货比较系统.exe` 运行
+            - 无需安装 Python、无需浏览器
+            - 兼容 Windows 7 / 8 / 10 / 11
+            - 版本: ${{ steps.version.outputs.VERSION }}
+          files: dist/药房进货比较系统.exe
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
