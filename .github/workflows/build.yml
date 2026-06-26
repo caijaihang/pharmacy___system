@@ -1,74 +1,64 @@
-name: Build Windows EXE
+# -*- mode: python ; coding: utf-8 -*-
+"""PyInstaller 打包配置 - 药房进货比较系统"""
+import os
+import sys
 
-on:
-  push:
-    branches: [main]
-  workflow_dispatch:
+PROJECT_ROOT = os.path.dirname(os.path.abspath(SPEC))
 
-jobs:
-  build:
-    runs-on: windows-2019
-    strategy:
-      matrix:
-        python-version: [3.8.10]
-        architecture: [x64]
+added_files = [
+    (os.path.join(PROJECT_ROOT, 'static', 'index.html'), 'static'),
+    (os.path.join(PROJECT_ROOT, 'static', 'vicrocode-sdk-v001.js'), 'static'),
+    (os.path.join(PROJECT_ROOT, 'pharmacy.db'), '.'),
+]
 
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+a = Analysis(
+    [os.path.join(PROJECT_ROOT, 'launcher.py')],
+    pathex=[PROJECT_ROOT],
+    binaries=[],
+    datas=added_files,
+    hiddenimports=[
+        'flask_cors',
+        'werkzeug.utils',
+        'openpyxl.styles',
+    ],
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[os.path.join(PROJECT_ROOT, 'hook-runtime.py')],
+    excludes=[
+        'tkinter', 'matplotlib', 'scipy', 'IPython', 'jupyter', 'notebook',
+        'pytest', 'sphinx', 'setuptools', 'pip', 'wheel', 'selenium',
+        'webdriver_manager', 'retrying', 'tenacity', 'fake_useragent',
+        'Pillow', 'PIL', 'gunicorn', 'unittest', 'distutils', 'pydoc',
+        'xmlrpc', 'pydoc_data', 'email', 'antigravity',
+    ],
+    noarchive=False,
+    optimize=0,
+    cipher=None,
+)
 
-      - name: Generate version number
-        id: version
-        shell: bash
-        run: |
-          DATE=$(date +%Y%m%d)
-          COUNT=$(git rev-list --count HEAD)
-          VERSION="v1.0.${COUNT}-${DATE}"
-          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-          echo "TAG=v1.0.${COUNT}" >> $GITHUB_OUTPUT
+pyz = PYZ(a.pure, a.zipped_data, cipher=None)
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-          architecture: ${{ matrix.architecture }}
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip setuptools wheel
-          pip install -r requirements-win.txt
-          pip install pyinstaller
-
-      - name: Verify dependencies
-        run: |
-          python -c "import PyQt5; print(f'PyQt5: {PyQt5.QtCore.PYQT_VERSION_STR}')"
-          python -c "import flask; print(f'Flask: {flask.__version__}')"
-          python -c "import PyQt5.QtWebEngineWidgets; print('WebEngine: OK')"
-
-      - name: Build EXE
-        run: pyinstaller pharmacy.spec --clean --noconfirm
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: pharmacy-system-win7-x64
-          path: dist/药房进货比较系统.exe
-          retention-days: 7
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.version.outputs.TAG }}
-          name: "药房进货比较系统 ${{ steps.version.outputs.TAG }}"
-          body: |
-            ## 药房进货比较系统 - Windows 桌面版
-            - 双击 `药房进货比较系统.exe` 运行
-            - 无需安装 Python、无需浏览器
-            - 兼容 Windows 7 / 8 / 10 / 11
-            - 版本: ${{ steps.version.outputs.VERSION }}
-          files: dist/药房进货比较系统.exe
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+exe = EXE(
+    pyz,
+    a.scripts,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    [],
+    name='药房进货比较系统',
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=False,
+    upx_exclude=[],
+    runtime_tmpdir=None,
+    console=False,
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+    icon=os.path.join(PROJECT_ROOT, 'static', 'images', 'icon.ico')
+        if os.path.exists(os.path.join(PROJECT_ROOT, 'static', 'images', 'icon.ico'))
+        else None,
+)
