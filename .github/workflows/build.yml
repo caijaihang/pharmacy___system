@@ -1,64 +1,79 @@
-# -*- mode: python ; coding: utf-8 -*-
-"""PyInstaller 打包配置 - 药房进货比较系统"""
-import os
-import sys
+name: Build Windows EXE
 
-PROJECT_ROOT = os.path.dirname(os.path.abspath(SPEC))
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
 
-added_files = [
-    (os.path.join(PROJECT_ROOT, 'static', 'index.html'), 'static'),
-    (os.path.join(PROJECT_ROOT, 'static', 'vicrocode-sdk-v001.js'), 'static'),
-    (os.path.join(PROJECT_ROOT, 'pharmacy.db'), '.'),
-]
+env:
+  PYTHON_VERSION: "3.8.10"
 
-a = Analysis(
-    [os.path.join(PROJECT_ROOT, 'launcher.py')],
-    pathex=[PROJECT_ROOT],
-    binaries=[],
-    datas=added_files,
-    hiddenimports=[
-        'flask_cors',
-        'werkzeug.utils',
-        'openpyxl.styles',
-    ],
-    hookspath=[],
-    hooksconfig={},
-    runtime_hooks=[os.path.join(PROJECT_ROOT, 'hook-runtime.py')],
-    excludes=[
-        'tkinter', 'matplotlib', 'scipy', 'IPython', 'jupyter', 'notebook',
-        'pytest', 'sphinx', 'setuptools', 'pip', 'wheel', 'selenium',
-        'webdriver_manager', 'retrying', 'tenacity', 'fake_useragent',
-        'Pillow', 'PIL', 'gunicorn', 'unittest', 'distutils', 'pydoc',
-        'xmlrpc', 'pydoc_data', 'email', 'antigravity',
-    ],
-    noarchive=False,
-    optimize=0,
-    cipher=None,
-)
+jobs:
+  build:
+    runs-on: windows-2019
+    timeout-minutes: 45
 
-pyz = PYZ(a.pure, a.zipped_data, cipher=None)
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-exe = EXE(
-    pyz,
-    a.scripts,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
-    [],
-    name='药房进货比较系统',
-    debug=False,
-    bootloader_ignore_signals=False,
-    strip=False,
-    upx=False,
-    upx_exclude=[],
-    runtime_tmpdir=None,
-    console=False,
-    disable_windowed_traceback=False,
-    argv_emulation=False,
-    target_arch=None,
-    codesign_identity=None,
-    entitlements_file=None,
-    icon=os.path.join(PROJECT_ROOT, 'static', 'images', 'icon.ico')
-        if os.path.exists(os.path.join(PROJECT_ROOT, 'static', 'images', 'icon.ico'))
-        else None,
-)
+      - name: Generate version
+        id: ver
+        shell: bash
+        run: |
+          echo "tag=v1.0.$(git rev-list --count HEAD)" >> $GITHUB_OUTPUT
+          echo "ver=v1.0.$(git rev-list --count HEAD)-$(date +%Y%m%d)" >> $GITHUB_OUTPUT
+
+      - name: Setup Python with cache
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: 'requirements-win.txt'
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-win.txt pyinstaller
+
+      - name: Build EXE
+        run: pyinstaller pharmacy.spec --clean --noconfirm
+        timeout-minutes: 25
+
+      - name: Check output
+        shell: bash
+        run: |
+          ls -lh dist/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pharmacy-system-win7-x64
+          path: dist/药房进货比较系统.exe
+          retention-days: 7
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: "药房进货比较系统 ${{ steps.ver.outputs.ver }}"
+          body: |
+            ## 药房进货比较系统 - Windows 桌面版
+            - 双击 `药房进货比较系统.exe` 运行
+            - 无需安装 Python、无需浏览器
+            - 兼容 Windows 7 / 8 / 10 / 11
+            - 版本: ${{ steps.ver.outputs.ver }}
+          files: dist/药房进货比较系统.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary
+        run: |
+          echo "## 构建完成 ${{ steps.ver.outputs.ver }}" >> $env:GITHUB_STEP_SUMMARY
+          echo "| 项目 | 值 |" >> $env:GITHUB_STEP_SUMMARY
+          echo "|------|----|" >> $env:GITHUB_STEP_SUMMARY
+          echo "| 版本 | ${{ steps.ver.outputs.ver }} |" >> $env:GITHUB_STEP_SUMMARY
+          echo "| Python | ${{ env.PYTHON_VERSION }} |" >> $env:GITHUB_STEP_SUMMARY
+          echo "| 下载 | 右侧 Releases 或下方 Artifacts |" >> $env:GITHUB_STEP_SUMMARY
