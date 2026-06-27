@@ -52,9 +52,9 @@ jobs:
 
       - name: Install pip
         run: |
-          wget -q https://bootstrap.pypa.io/get-pip.py -O ~/.wine/drive_c/python38/get-pip.py
+          wget -q https://bootstrap.pypa.io/pip/3.8/get-pip.py -O ~/.wine/drive_c/python38/get-pip.py
           xvfb-run -a wine C:\\python38\\python.exe C:\\python38\\get-pip.py
-          wine C:\\python38\\python.exe -m pip --version
+          xvfb-run -a wine C:\\python38\\python.exe -m pip --version
 
       - name: Install dependencies
         run: |
