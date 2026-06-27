@@ -77,7 +77,7 @@ def create_window(port):
         QApplication, QMainWindow, QProgressBar, QMessageBox,
         QVBoxLayout, QWidget, QLabel
     )
-    from PyQt5.QtCore import QUrl, QTimer
+    from PyQt5.QtCore import QUrl, QTimer, Qt
     from PyQt5.QtWebEngineWidgets import QWebEngineView
     from PyQt5.QtGui import QIcon
 
@@ -107,9 +107,7 @@ def create_window(port):
 
             # 加载提示
             self.loading_label = QLabel('正在启动系统，请稍候...')
-            self.loading_label.setAlignment(
-                __import__('PyQt5.QtCore', fromlist=['Qt']).Qt.AlignCenter
-            )
+            self.loading_label.setAlignment(Qt.AlignCenter)
             self.loading_label.setStyleSheet(
                 'font-size: 18px; color: #409EFF; padding: 40px;'
             )
@@ -206,8 +204,14 @@ def main():
     flask_thread = threading.Thread(target=start_flask, args=(port,), daemon=True)
     flask_thread.start()
 
+    # 必须在 QApplication 之前导入 WebEngine
+    from PyQt5.QtWebEngineWidgets import QWebEngineView
+    from PyQt5.QtCore import Qt
+
     # 启动 Qt 应用（必须在主线程）
     from PyQt5.QtWidgets import QApplication
+    Qt.AA_ShareOpenGLContexts = 0x41  # WebEngine 需要
+    QApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
     qt_app = QApplication(sys.argv)
 
     # 设置应用信息
@@ -215,8 +219,8 @@ def main():
     qt_app.setApplicationVersion('1.0.0')
 
     # 高 DPI 支持
-    qt_app.setAttribute(__import__('PyQt5.QtCore', fromlist=['Qt']).Qt.AA_EnableHighDpiScaling)
-    qt_app.setAttribute(__import__('PyQt5.QtCore', fromlist=['Qt']).Qt.AA_UseHighDpiPixmaps)
+    qt_app.setAttribute(Qt.AA_EnableHighDpiScaling)
+    qt_app.setAttribute(Qt.AA_UseHighDpiPixmaps)
 
     # 创建主窗口
     window = create_window(port)
