@@ -27,7 +27,7 @@ xlrd==2.0.1
 
 # 桌面界面（EXE 必须）
 PyQt5==5.15.9
-PyQtWebEngine==5.15.9
+PyQtWebEngine==5.15.7
 
 # Jinja2 模板（Flask 依赖）
 Jinja2==3.1.2
