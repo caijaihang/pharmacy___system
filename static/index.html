@@ -1072,10 +1072,10 @@
             try {
                 const response = await fetch('/api/suppliers');
                 const data = await response.json();
-                
+
                 if (data.success) {
                     document.getElementById('stat-suppliers').textContent = data.data.length;
-                    
+
                     // 加载供应商状态
                     const grid = document.getElementById('supplier-status-grid');
                     grid.innerHTML = data.data.map(supplier => `
@@ -1085,7 +1085,7 @@
                             <div class="supplier-info">账号: ${supplier.account}</div>
                             <div style="margin-top: 10px;">
                                 <span class="badge badge-success">在线</span>
-                                <button class="btn-3d btn-info" style="padding: 6px 12px; font-size: 12px;" 
+                                <button class="btn-3d btn-info" style="padding: 6px 12px; font-size: 12px;"
                                         onclick="window.open('${supplier.url}', '_blank')">访问网站</button>
                             </div>
                         </div>
@@ -1093,6 +1093,23 @@
                 }
             } catch (error) {
                 console.error('加载仪表盘数据失败:', error);
+            }
+
+            // 加载统计数据
+            loadDashboardStats();
+        }
+
+        async function loadDashboardStats() {
+            try {
+                const response = await fetch('/api/stats');
+                const data = await response.json();
+                if (data.success) {
+                    document.getElementById('stat-searches').textContent = data.data.today_searches || 0;
+                    document.getElementById('stat-products').textContent = data.data.total_products || 0;
+                    document.getElementById('stat-savings').textContent = (data.data.savings || 0).toFixed(2);
+                }
+            } catch (error) {
+                console.error('加载统计数据失败:', error);
             }
         }
         
@@ -1597,17 +1614,22 @@
                 const data = await response.json();
 
                 if (data.success) {
-                    const result = data.data;
+                    // 包装成统一格式 {barcode, supplier_results}
+                    const result = {
+                        barcode: barcode,
+                        supplier_results: data.data.results || []
+                    };
                     batchAllResults.push(result);
-                    // 显示这个条码的结果
                     appendBatchResult(result, batchCurrentIndex);
                 } else {
-                    batchAllResults.push({ barcode: barcode, supplier_results: [] });
-                    appendBatchResult({ barcode: barcode, supplier_results: [] }, batchCurrentIndex);
+                    const emptyResult = { barcode: barcode, supplier_results: [] };
+                    batchAllResults.push(emptyResult);
+                    appendBatchResult(emptyResult, batchCurrentIndex);
                 }
             } catch (error) {
-                batchAllResults.push({ barcode: barcode, supplier_results: [] });
-                appendBatchResult({ barcode: barcode, supplier_results: [] }, batchCurrentIndex);
+                const emptyResult = { barcode: barcode, supplier_results: [] };
+                batchAllResults.push(emptyResult);
+                appendBatchResult(emptyResult, batchCurrentIndex);
             }
 
             batchCurrentIndex++;
@@ -2110,15 +2132,33 @@
             content.innerHTML = html;
         }
 
-        // 更新购物车商品数量（前端模拟，实际需调用API）
+        // 更新购物车商品数量（同步到供应商网站）
         async function updateCartItemQty(supplier, itemId, newQty, skuId) {
             newQty = parseInt(newQty) || 1;
             if (newQty < 1) newQty = 1;
-            // 这里可以扩展为调用后端API更新购物车数量
-            // 目前先刷新页面显示
-            showToast(`${supplier} 数量已更新为 ${newQty}`, 'success');
-            // 重新加载购物车
-            setTimeout(() => switchCartTab(supplier), 500);
+
+            showToast(`正在更新 ${supplier} 数量...`, 'success');
+            try {
+                const response = await fetch('/api/cart/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        supplier: supplier,
+                        item_id: itemId,
+                        sku_id: skuId || '',
+                        quantity: newQty
+                    })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showToast(`${supplier} 数量已更新为 ${newQty}`, 'success');
+                    setTimeout(() => switchCartTab(supplier), 800);
+                } else {
+                    showToast(data.message || '更新失败', 'error');
+                }
+            } catch (error) {
+                showToast('更新出错: ' + error.message, 'error');
+            }
         }
 
         // 点击模态框外部关闭
