@@ -2,6 +2,7 @@
 """PyInstaller 打包配置 - 药房进货比较系统"""
 import os
 import sys
+from PyInstaller.utils.hooks import collect_all
 
 PROJECT_ROOT = os.path.dirname(os.path.abspath(SPEC))
 
@@ -11,16 +12,19 @@ added_files = [
     (os.path.join(PROJECT_ROOT, 'pharmacy.db'), '.'),
 ]
 
+# 收集 pytz 时区数据，避免 Windows 7 解压失败
+pytz_datas, pytz_binaries, pytz_hiddenimports = collect_all('pytz')
+
 a = Analysis(
     [os.path.join(PROJECT_ROOT, 'launcher.py')],
     pathex=[PROJECT_ROOT],
-    binaries=[],
-    datas=added_files,
+    binaries=pytz_binaries,
+    datas=added_files + pytz_datas,
     hiddenimports=[
         'flask_cors',
         'werkzeug.utils',
         'openpyxl.styles',
-    ],
+    ] + pytz_hiddenimports,
     hookspath=[],
     runtime_hooks=[os.path.join(PROJECT_ROOT, 'hook-runtime.py')],
     excludes=[
@@ -33,7 +37,7 @@ a = Analysis(
     noarchive=False,
 )
 
-pyz = PYZ(a.pure, a.zipped_data, cipher=None)
+pyz = PYZ(a.pure, a.zipped_data)
 
 exe = EXE(
     pyz,
@@ -46,7 +50,7 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=False,              # <-- 禁用 UPX！这是卡 2 小时的元凶
+    upx=False,
     upx_exclude=[],
     runtime_tmpdir=None,
     console=False,
