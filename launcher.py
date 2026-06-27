@@ -6,7 +6,6 @@
 import sys
 import os
 import threading
-import time
 import socket
 
 # ============================================================
@@ -15,8 +14,6 @@ import socket
 def get_base_path():
     """获取应用根目录（兼容开发环境和打包后的环境）"""
     if getattr(sys, 'frozen', False):
-        # PyInstaller 打包后，_MEIPASS 是临时解压目录
-        # 可执行文件所在目录用于存放数据库等可写文件
         return os.path.dirname(sys.executable)
     return os.path.dirname(os.path.abspath(__file__))
 
@@ -40,26 +37,18 @@ def find_free_port(start_port=5000, max_tries=20):
                 return port
         except OSError:
             continue
-    return start_port + max_tries  # 兜底
+    return start_port + max_tries
 
 # ============================================================
 # Flask 后端启动（后台线程）
 # ============================================================
 def start_flask(port):
     """在后台线程启动 Flask 服务器"""
-    # 设置工作目录，确保数据库等路径正确
     os.chdir(BASE_PATH)
-
-    # 设置端口环境变量
     os.environ['PORT'] = str(port)
-
-    # 导入并启动 Flask
     from app import app as flask_app
-
-    # 关闭 Flask 日志（桌面应用不需要看到 HTTP 请求日志）
     import logging
     logging.getLogger('werkzeug').setLevel(logging.WARNING)
-
     flask_app.run(
         host='127.0.0.1',
         port=port,
@@ -74,12 +63,46 @@ def start_flask(port):
 def create_window(port):
     """创建 PyQt5 桌面窗口，内嵌浏览器访问 Flask"""
     from PyQt5.QtWidgets import (
-        QApplication, QMainWindow, QProgressBar, QMessageBox,
+        QApplication, QMainWindow, QProgressBar,
         QVBoxLayout, QWidget, QLabel
     )
     from PyQt5.QtCore import QUrl, QTimer, Qt
-    from PyQt5.QtWebEngineWidgets import QWebEngineView
-    from PyQt5.QtGui import QIcon
+    from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEnginePage, QWebEngineSettings
+    from PyQt5.QtGui import QIcon, QDesktopServices
+
+    # 自定义 WebEngine 页面：外部链接 -> 系统浏览器
+    class PharmacyPage(QWebEnginePage):
+        """拦截外部链接，用系统默认浏览器打开"""
+        app_port = 5000
+
+        def acceptNavigationRequest(self, url, nav_type, isMainFrame):
+            url_str = url.toString()
+            local_prefixes = (
+                f'http://127.0.0.1:{self.app_port}',
+                f'http://localhost:{self.app_port}'
+            )
+            # 外部链接（如供应商直达链接）用系统浏览器打开
+            if not url_str.startswith(local_prefixes):
+                if url_str.startswith(('http://', 'https://')):
+                    QDesktopServices.openUrl(url)
+                    return False
+            return super().acceptNavigationRequest(url, nav_type, isMainFrame)
+
+        def createWindow(self, window_type):
+            # target="_blank" 的链接也走同样的拦截逻辑
+            page = PharmacyPage(self)
+            page.app_port = self.app_port
+            return page
+
+    # 全局 WebEngine 性能优化
+    settings = QWebEngineSettings.globalSettings()
+    settings.setAttribute(QWebEngineSettings.PluginsEnabled, False)
+    settings.setAttribute(QWebEngineSettings.PdfViewerEnabled, False)
+    settings.setAttribute(QWebEngineSettings.WebGLEnabled, False)
+    settings.setAttribute(QWebEngineSettings.Accelerated2dCanvasEnabled, False)
+    settings.setAttribute(QWebEngineSettings.ScrollAnimatorEnabled, False)
+    settings.setAttribute(QWebEngineSettings.TouchIconsEnabled, False)
+    settings.setAttribute(QWebEngineSettings.FocusOnNavigationEnabled, False)
 
     class PharmacyApp(QMainWindow):
         def __init__(self):
@@ -168,8 +191,11 @@ def create_window(port):
                     if widget:
                         widget.deleteLater()
 
-                # 创建 WebEngine 视图
+                # 创建 WebEngine 视图（使用自定义 Page）
                 self.web_view = QWebEngineView()
+                page = PharmacyPage(self.web_view)
+                page.app_port = self.port
+                self.web_view.setPage(page)
                 self.web_view.load(QUrl(url))
                 layout.addWidget(self.web_view)
 
@@ -196,7 +222,6 @@ def create_window(port):
 # 主入口
 # ============================================================
 def main():
-    # 查找可用端口
     port = find_free_port(5000)
     print(f'[启动器] 使用端口: {port}')
 
@@ -208,17 +233,13 @@ def main():
     from PyQt5.QtWebEngineWidgets import QWebEngineView
     from PyQt5.QtCore import Qt
 
-    # 启动 Qt 应用（必须在主线程）
+    # 启动 Qt 应用
     from PyQt5.QtWidgets import QApplication
-    Qt.AA_ShareOpenGLContexts = 0x41  # WebEngine 需要
     QApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
     qt_app = QApplication(sys.argv)
 
-    # 设置应用信息
     qt_app.setApplicationName('药房进货比较系统')
     qt_app.setApplicationVersion('1.0.0')
-
-    # 高 DPI 支持
     qt_app.setAttribute(Qt.AA_EnableHighDpiScaling)
     qt_app.setAttribute(Qt.AA_UseHighDpiPixmaps)
 
@@ -226,7 +247,6 @@ def main():
     window = create_window(port)
     window.show()
 
-    # 运行 Qt 事件循环
     sys.exit(qt_app.exec_())
 
 
