@@ -2098,7 +2098,13 @@
                                 </div>
                             </div>
                             <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid #f0f0f0;">
-                                <span style="font-size:13px;color:#666;">数量: <strong style="color:#333;font-size:15px;">${item.quantity}</strong></span>
+                                <button class="btn-3d" style="padding:4px 12px;font-size:16px;font-weight:bold;min-width:32px;background:linear-gradient(135deg,#e0e0e0,#bdbdbd);color:#333;"
+                                        onclick="updateCartItemQty('${supplier}', '${item.id}', ${item.quantity - 1}, '${item.sku_id || ''}')">-</button>
+                                <input type="number" value="${item.quantity}" min="1" max="9999"
+                                       style="width:60px;padding:6px;border:1px solid #ddd;border-radius:6px;font-size:14px;text-align:center;"
+                                       onchange="updateCartItemQty('${supplier}', '${item.id}', this.value, '${item.sku_id || ''}')">
+                                <button class="btn-3d" style="padding:4px 12px;font-size:16px;font-weight:bold;min-width:32px;background:linear-gradient(135deg,#e0e0e0,#bdbdbd);color:#333;"
+                                        onclick="updateCartItemQty('${supplier}', '${item.id}', ${item.quantity + 1}, '${item.sku_id || ''}')">+</button>
                             </div>
                         </div>
                     `;
@@ -2126,33 +2132,14 @@
             content.innerHTML = html;
         }
 
-        // 更新购物车商品数量（同步到供应商网站）
-        async function updateCartItemQty(supplier, itemId, newQty, skuId) {
+        // 更新购物车商品数量（仅本地显示，不修改供应商网站购物车）
+        function updateCartItemQty(supplier, itemId, newQty, skuId) {
             newQty = parseInt(newQty) || 1;
             if (newQty < 1) newQty = 1;
-
-            showToast(`正在更新 ${supplier} 数量...`, 'success');
-            try {
-                const response = await fetch('/api/cart/update', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        supplier: supplier,
-                        item_id: itemId,
-                        sku_id: skuId || '',
-                        quantity: newQty
-                    })
-                });
-                const data = await response.json();
-                if (data.success) {
-                    showToast(`${supplier} 数量已更新为 ${newQty}`, 'success');
-                    setTimeout(() => switchCartTab(supplier), 800);
-                } else {
-                    showToast(data.message || '更新失败', 'error');
-                }
-            } catch (error) {
-                showToast('更新出错: ' + error.message, 'error');
-            }
+            // 更新界面上显示的数量
+            const qtyInput = document.querySelector(`input[data-item-id="${itemId}"][data-supplier="${supplier}"]`);
+            if (qtyInput) qtyInput.value = newQty;
+            showToast(`数量已设为 ${newQty}（修改将在此界面显示，提交订单时生效）`, 'success');
         }
 
         // 点击模态框外部关闭
