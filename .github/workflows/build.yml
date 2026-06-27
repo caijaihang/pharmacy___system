@@ -10,7 +10,7 @@ env:
 
 jobs:
   build:
-    runs-on: windows-2019
+    runs-on: ubuntu-latest
     timeout-minutes: 45
 
     steps:
@@ -21,30 +21,37 @@ jobs:
 
       - name: Generate version
         id: ver
-        shell: bash
         run: |
-          echo "tag=v1.0.$(git rev-list --count HEAD)" >> $GITHUB_OUTPUT
-          echo "ver=v1.0.$(git rev-list --count HEAD)-$(date +%Y%m%d)" >> $GITHUB_OUTPUT
+          COUNT=$(git rev-list --count HEAD)
+          DATE=$(date +%Y%m%d)
+          echo "tag=v1.0.${COUNT}" >> $GITHUB_OUTPUT
+          echo "ver=v1.0.${COUNT}-${DATE}" >> $GITHUB_OUTPUT
 
-      - name: Setup Python with cache
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
-          cache-dependency-path: 'requirements-win.txt'
-
-      - name: Install deps
+      - name: Install Wine and dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements-win.txt pyinstaller
+          sudo dpkg --add-architecture i386
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq wine64 wine32 winetricks p7zip-full wget
+          wine --version
 
-      - name: Build EXE
-        run: pyinstaller pharmacy.spec --clean --noconfirm
-        timeout-minutes: 25
-
-      - name: Check output
-        shell: bash
+      - name: Download Windows Python and PyInstaller
         run: |
+          # 下载 Windows 嵌入版 Python
+          wget -q https://www.python.org/ftp/python/${PYTHON_VERSION}/python-${PYTHON_VERSION}-embed-amd64.zip
+          mkdir -p ~/python-win
+          unzip -q python-${PYTHON_VERSION}-embed-amd64.zip -d ~/python-win
+          # 下载 get-pip.py
+          wget -q https://bootstrap.pypa.io/get-pip.py -O ~/python-win/get-pip.py
+          # 用 Wine 安装 pip
+          wine python ~/python-win/get-pip.py
+          # 用 Wine 安装依赖和 PyInstaller
+          wine python -m pip install --no-warn-script-location pyinstaller -r requirements-win.txt
+
+      - name: Build EXE with Wine + PyInstaller
+        run: |
+          # 用 Wine 运行 Windows 版 PyInstaller
+          wine python -m PyInstaller pharmacy.spec --clean --noconfirm
+          # 验证输出
           ls -lh dist/
 
       - name: Upload artifact
@@ -71,9 +78,10 @@ jobs:
 
       - name: Summary
         run: |
-          echo "## 构建完成 ${{ steps.ver.outputs.ver }}" >> $env:GITHUB_STEP_SUMMARY
-          echo "| 项目 | 值 |" >> $env:GITHUB_STEP_SUMMARY
-          echo "|------|----|" >> $env:GITHUB_STEP_SUMMARY
-          echo "| 版本 | ${{ steps.ver.outputs.ver }} |" >> $env:GITHUB_STEP_SUMMARY
-          echo "| Python | ${{ env.PYTHON_VERSION }} |" >> $env:GITHUB_STEP_SUMMARY
-          echo "| 下载 | 右侧 Releases 或下方 Artifacts |" >> $env:GITHUB_STEP_SUMMARY
+          echo "## 构建完成 ${{ steps.ver.outputs.ver }}" >> $GITHUB_STEP_SUMMARY
+          echo "| 项目 | 值 |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|----|" >> $GITHUB_STEP_SUMMARY
+          echo "| 版本 | ${{ steps.ver.outputs.ver }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Python | ${{ env.PYTHON_VERSION }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 构建方式 | Ubuntu + Wine 交叉编译 |" >> $GITHUB_STEP_SUMMARY
+          echo "| 下载 | 右侧 Releases 或下方 Artifacts |" >> $GITHUB_STEP_SUMMARY
