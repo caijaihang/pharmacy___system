@@ -5,33 +5,68 @@ on:
     branches: [main]
   workflow_dispatch:
 
+env:
+  PY_VER: "3.8.10"
+
 jobs:
   build:
-    runs-on: windows-2019
-    timeout-minutes: 45
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.8
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.8'
+      - name: Install Wine and tools
+        run: |
+          sudo dpkg --add-architecture i386
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq wine64 xvfb p7zip-full wget
+          wine --version
+
+      - name: Initialize Wine prefix
+        run: |
+          export WINEARCH=win64
+          export WINEDEBUG=-all
+          xvfb-run -a wine wineboot --init
+          sleep 10
+          ls -la ~/.wine/drive_c/
+
+      - name: Download and extract embeddable Python
+        run: |
+          wget --show-progress -O python-embed.zip "https://www.python.org/ftp/python/${PY_VER}/python-${PY_VER}-embed-amd64.zip"
+          ls -la python-embed.zip
+          mkdir -p ~/.wine/drive_c/python38
+          unzip -q python-embed.zip -d ~/.wine/drive_c/python38
+          ls -la ~/.wine/drive_c/python38/
+
+      - name: Enable pip for embeddable Python
+        run: |
+          # 修改 python38._pth 启用 site-packages
+          PTH_FILE=$(ls ~/.wine/drive_c/python38/*._pth | head -1)
+          echo "Before:"
+          cat "$PTH_FILE"
+          sed -i 's/^#import site/import site/' "$PTH_FILE" || true
+          echo "After:"
+          cat "$PTH_FILE"
+
+      - name: Install pip
+        run: |
+          wget -q https://bootstrap.pypa.io/get-pip.py -O ~/.wine/drive_c/python38/get-pip.py
+          xvfb-run -a wine C:\\python38\\python.exe C:\\python38\\get-pip.py
+          wine C:\\python38\\python.exe -m pip --version
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements-win.txt
-          pip install pyinstaller
+          wine C:\\python38\\python.exe -m pip install --upgrade pip
+          wine C:\\python38\\python.exe -m pip install -r requirements-win.txt
+          wine C:\\python38\\python.exe -m pip install pyinstaller
+          wine C:\\python38\\python.exe -m PyInstaller --version
 
       - name: Build EXE with PyInstaller
         run: |
-          pyinstaller pharmacy.spec --clean --noconfirm
-
-      - name: List dist contents
-        run: |
-          Get-ChildItem dist\ -Recurse
+          wine C:\\python38\\python.exe -m PyInstaller pharmacy.spec --clean --noconfirm
+          ls -lh dist/
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -41,7 +76,6 @@ jobs:
           retention-days: 7
 
       - name: Create Release
-        if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0.${{ github.run_number }}
@@ -51,17 +85,16 @@ jobs:
             - 双击 `药房进货比较系统.exe` 运行
             - 无需安装 Python、无需浏览器
             - 兼容 Windows 7 / 8 / 10 / 11
-            - 构建时间: ${{ github.event.head_commit.timestamp }}
           files: dist/药房进货比较系统.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Summary
         run: |
-          Write-Output "## 构建完成 v1.0.${{ github.run_number }}" >> $env:GITHUB_STEP_SUMMARY
-          Write-Output "| 项目 | 值 |" >> $env:GITHUB_STEP_SUMMARY
-          Write-Output "|------|----|" >> $env:GITHUB_STEP_SUMMARY
-          Write-Output "| 版本 | v1.0.${{ github.run_number }} |" >> $env:GITHUB_STEP_SUMMARY
-          Write-Output "| Python | 3.8.10 |" >> $env:GITHUB_STEP_SUMMARY
-          Write-Output "| 构建环境 | Windows Server 2019 |" >> $env:GITHUB_STEP_SUMMARY
-          Write-Output "| 下载 | 右侧 Releases 或下方 Artifacts |" >> $env:GITHUB_STEP_SUMMARY
+          echo "## 构建完成 v1.0.${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "| 项目 | 值 |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|----|" >> $GITHUB_STEP_SUMMARY
+          echo "| 版本 | v1.0.${{ github.run_number }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Python | ${{ env.PY_VER }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 构建方式 | Ubuntu + Wine + Embeddable Python |" >> $GITHUB_STEP_SUMMARY
+          echo "| 下载 | 右侧 Releases 或下方 Artifacts |" >> $GITHUB_STEP_SUMMARY
