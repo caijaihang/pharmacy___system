@@ -272,6 +272,22 @@
             overflow-x: auto;
             border-radius: 8px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            position: relative;
+            max-width: 100%;
+        }
+        .table-container::-webkit-scrollbar {
+            height: 10px;
+        }
+        .table-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 5px;
+        }
+        .table-container::-webkit-scrollbar-thumb {
+            background: #2196F3;
+            border-radius: 5px;
+        }
+        .table-container::-webkit-scrollbar-thumb:hover {
+            background: #1976D2;
         }
         
         table {
@@ -1695,10 +1711,12 @@
             const supplierOrder = ['康之源', '明华堂', '俊龙', '中源'];
 
             tbody.innerHTML = results.map((item, index) => {
-                // 按固定顺序排列供应商结果
+                // 按固定顺序排列供应商结果（兼容空值）
                 const resultMap = {};
-                item.supplier_results.forEach(r => {
-                    resultMap[r.supplier_name] = r;
+                (item.supplier_results || []).forEach(r => {
+                    if (r && r.supplier_name) {
+                        resultMap[r.supplier_name] = r;
+                    }
                 });
 
                 let cells = '';
@@ -1710,17 +1728,17 @@
                     const priceStr = r.price !== null && r.price !== undefined ? '¥' + Number(r.price).toFixed(2) : '-';
                     const stockClass = r.stock_status === '有货' ? 'stock-in' : (r.stock_status === '缺货' ? 'stock-out' : '');
                     cells += `
-                        <td>${r.product_name}</td>
-                        <td>${r.specification}</td>
+                        <td>${r.product_name || '-'}</td>
+                        <td>${r.specification || '-'}</td>
                         <td class="price-cell">${priceStr}</td>
-                        <td class="validity-cell">${r.validity_date}</td>
-                        <td class="${stockClass}">${r.stock_status}</td>
+                        <td class="validity-cell">${r.validity_date || '-'}</td>
+                        <td class="${stockClass}">${r.stock_status || '-'}</td>
                     `;
                 });
 
                 return `<tr>
                     <td>${index + 1}</td>
-                    <td><strong>${item.barcode}</strong></td>
+                    <td><strong>${item.barcode || '-'}</strong></td>
                     ${cells}
                 </tr>`;
             }).join('');
@@ -1922,11 +1940,13 @@
                     const url = window.URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = `pharmacy_comparison_${new Date().getTime()}.xlsx`;
+                    const filename = `pharmacy_comparison_${new Date().getTime()}.xlsx`;
+                    a.download = filename;
                     document.body.appendChild(a);
                     a.click();
                     window.URL.revokeObjectURL(url);
                     document.body.removeChild(a);
+                    showToast('导出成功！文件 ' + filename, 'success');
                 } else {
                     try {
                         const data = await response.json();
