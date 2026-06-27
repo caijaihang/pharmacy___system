@@ -199,6 +199,10 @@ def create_window(port):
                 self.web_view.load(QUrl(url))
                 layout.addWidget(self.web_view)
 
+                # 设置下载处理：Excel 导出保存到桌面
+                profile = self.web_view.page().profile()
+                profile.downloadRequested.connect(self.handle_download)
+
             except (urllib.error.URLError, urllib.error.HTTPError, OSError):
                 if self.retry_count > 30:  # 15秒超时
                     self.load_timer.stop()
@@ -210,6 +214,19 @@ def create_window(port):
                     self.loading_label.setStyleSheet(
                         'font-size: 16px; color: #F56C6C; padding: 40px;'
                     )
+
+        def handle_download(self, download):
+            """处理文件下载：保存到桌面并弹窗提示"""
+            from PyQt5.QtWidgets import QMessageBox
+            desktop = os.path.join(os.path.expanduser('~'), 'Desktop')
+            os.makedirs(desktop, exist_ok=True)
+            path = os.path.join(desktop, download.suggestedFileName())
+            download.setPath(path)
+            download.accept()
+            QMessageBox.information(
+                self, '导出成功',
+                f'文件已保存到桌面：\n{path}\n\n您可以在桌面上找到该文件。'
+            )
 
         def closeEvent(self, event):
             """关闭窗口时确保应用完全退出"""
