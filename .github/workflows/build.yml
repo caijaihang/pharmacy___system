@@ -5,54 +5,33 @@ on:
     branches: [main]
   workflow_dispatch:
 
-env:
-  PYTHON_VERSION: "3.8.10"
-
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: windows-2019
     timeout-minutes: 45
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Set up Python 3.8
+        uses: actions/setup-python@v5
         with:
-          fetch-depth: 0
+          python-version: '3.8'
 
-      - name: Generate version
-        id: ver
+      - name: Install dependencies
         run: |
-          COUNT=$(git rev-list --count HEAD)
-          DATE=$(date +%Y%m%d)
-          echo "tag=v1.0.${COUNT}" >> $GITHUB_OUTPUT
-          echo "ver=v1.0.${COUNT}-${DATE}" >> $GITHUB_OUTPUT
+          python -m pip install --upgrade pip
+          pip install -r requirements-win.txt
+          pip install pyinstaller
 
-      - name: Install Wine and dependencies
+      - name: Build EXE with PyInstaller
         run: |
-          sudo dpkg --add-architecture i386
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq wine64 wine32 winetricks p7zip-full wget
-          wine --version
+          pyinstaller pharmacy.spec --clean --noconfirm
 
-      - name: Download Windows Python and PyInstaller
+      - name: List dist contents
         run: |
-          # 下载 Windows 嵌入版 Python
-          wget -q https://www.python.org/ftp/python/${PYTHON_VERSION}/python-${PYTHON_VERSION}-embed-amd64.zip
-          mkdir -p ~/python-win
-          unzip -q python-${PYTHON_VERSION}-embed-amd64.zip -d ~/python-win
-          # 下载 get-pip.py
-          wget -q https://bootstrap.pypa.io/get-pip.py -O ~/python-win/get-pip.py
-          # 用 Wine 安装 pip
-          wine python ~/python-win/get-pip.py
-          # 用 Wine 安装依赖和 PyInstaller
-          wine python -m pip install --no-warn-script-location pyinstaller -r requirements-win.txt
-
-      - name: Build EXE with Wine + PyInstaller
-        run: |
-          # 用 Wine 运行 Windows 版 PyInstaller
-          wine python -m PyInstaller pharmacy.spec --clean --noconfirm
-          # 验证输出
-          ls -lh dist/
+          Get-ChildItem dist\ -Recurse
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -62,26 +41,27 @@ jobs:
           retention-days: 7
 
       - name: Create Release
+        if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.ver.outputs.tag }}
-          name: "药房进货比较系统 ${{ steps.ver.outputs.ver }}"
+          tag_name: v1.0.${{ github.run_number }}
+          name: "药房进货比较系统 v1.0.${{ github.run_number }}"
           body: |
             ## 药房进货比较系统 - Windows 桌面版
             - 双击 `药房进货比较系统.exe` 运行
             - 无需安装 Python、无需浏览器
             - 兼容 Windows 7 / 8 / 10 / 11
-            - 版本: ${{ steps.ver.outputs.ver }}
+            - 构建时间: ${{ github.event.head_commit.timestamp }}
           files: dist/药房进货比较系统.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Summary
         run: |
-          echo "## 构建完成 ${{ steps.ver.outputs.ver }}" >> $GITHUB_STEP_SUMMARY
-          echo "| 项目 | 值 |" >> $GITHUB_STEP_SUMMARY
-          echo "|------|----|" >> $GITHUB_STEP_SUMMARY
-          echo "| 版本 | ${{ steps.ver.outputs.ver }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Python | ${{ env.PYTHON_VERSION }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 构建方式 | Ubuntu + Wine 交叉编译 |" >> $GITHUB_STEP_SUMMARY
-          echo "| 下载 | 右侧 Releases 或下方 Artifacts |" >> $GITHUB_STEP_SUMMARY
+          Write-Output "## 构建完成 v1.0.${{ github.run_number }}" >> $env:GITHUB_STEP_SUMMARY
+          Write-Output "| 项目 | 值 |" >> $env:GITHUB_STEP_SUMMARY
+          Write-Output "|------|----|" >> $env:GITHUB_STEP_SUMMARY
+          Write-Output "| 版本 | v1.0.${{ github.run_number }} |" >> $env:GITHUB_STEP_SUMMARY
+          Write-Output "| Python | 3.8.10 |" >> $env:GITHUB_STEP_SUMMARY
+          Write-Output "| 构建环境 | Windows Server 2019 |" >> $env:GITHUB_STEP_SUMMARY
+          Write-Output "| 下载 | 右侧 Releases 或下方 Artifacts |" >> $env:GITHUB_STEP_SUMMARY
