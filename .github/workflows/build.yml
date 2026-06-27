@@ -21,7 +21,7 @@ jobs:
         run: |
           sudo dpkg --add-architecture i386
           sudo apt-get update -qq
-          sudo apt-get install -y -qq wine64 xvfb p7zip-full wget
+          sudo apt-get install -y -qq wine64 wine32 xvfb p7zip-full wget cabextract
           wine --version
 
       - name: Initialize Wine prefix
@@ -30,7 +30,13 @@ jobs:
           export WINEDEBUG=-all
           xvfb-run -a wine wineboot --init
           sleep 10
-          ls -la ~/.wine/drive_c/
+
+      - name: Install VC++ Redistributable (fix CRT for Python)
+        run: |
+          # 下载并静默安装 VC++ 2019 Redist（补全 Wine 缺失的 CRT 函数）
+          wget -q https://aka.ms/vs/17/release/vc_redist.x64.exe -O vc_redist.exe
+          xvfb-run -a wine vc_redist.exe /install /quiet /norestart
+          sleep 5
 
       - name: Download and extract embeddable Python
         run: |
@@ -42,12 +48,8 @@ jobs:
 
       - name: Enable pip for embeddable Python
         run: |
-          # 修改 python38._pth 启用 site-packages
           PTH_FILE=$(ls ~/.wine/drive_c/python38/*._pth | head -1)
-          echo "Before:"
-          cat "$PTH_FILE"
           sed -i 's/^#import site/import site/' "$PTH_FILE" || true
-          echo "After:"
           cat "$PTH_FILE"
 
       - name: Install pip
@@ -58,14 +60,14 @@ jobs:
 
       - name: Install dependencies
         run: |
-          wine C:\\python38\\python.exe -m pip install --upgrade pip
-          wine C:\\python38\\python.exe -m pip install -r requirements-win.txt
-          wine C:\\python38\\python.exe -m pip install pyinstaller
-          wine C:\\python38\\python.exe -m PyInstaller --version
+          xvfb-run -a wine C:\\python38\\python.exe -m pip install --upgrade pip
+          xvfb-run -a wine C:\\python38\\python.exe -m pip install -r requirements-win.txt
+          xvfb-run -a wine C:\\python38\\python.exe -m pip install pyinstaller
+          xvfb-run -a wine C:\\python38\\python.exe -m PyInstaller --version
 
       - name: Build EXE with PyInstaller
         run: |
-          wine C:\\python38\\python.exe -m PyInstaller pharmacy.spec --clean --noconfirm
+          xvfb-run -a wine C:\\python38\\python.exe -m PyInstaller pharmacy.spec --clean --noconfirm
           ls -lh dist/
 
       - name: Upload artifact
