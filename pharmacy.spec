@@ -29,10 +29,10 @@ a = Analysis(
     runtime_hooks=[os.path.join(PROJECT_ROOT, 'hook-runtime.py')],
     excludes=[
         'tkinter', 'matplotlib', 'scipy', 'IPython', 'jupyter', 'notebook',
-        'pytest', 'sphinx', 'setuptools', 'pip', 'wheel', 'selenium',
+        'pytest', 'sphinx', 'pip', 'wheel', 'selenium',
         'webdriver_manager', 'retrying', 'tenacity', 'fake_useragent',
-        'Pillow', 'PIL', 'gunicorn', 'unittest', 'distutils', 'pydoc',
-        'xmlrpc', 'pydoc_data', 'email', 'antigravity',
+        'Pillow', 'PIL', 'gunicorn', 'unittest', 'pydoc',
+        'xmlrpc', 'pydoc_data', 'antigravity',
     ],
     noarchive=False,
 )
