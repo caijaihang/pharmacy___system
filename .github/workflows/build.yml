@@ -21,7 +21,7 @@ jobs:
         run: |
           sudo dpkg --add-architecture i386
           sudo apt-get update -qq
-          sudo apt-get install -y -qq wine64 wine32 xvfb p7zip-full wget cabextract
+          sudo apt-get install -y -qq wine64 wine32 winetricks xvfb p7zip-full wget cabextract
           wine --version
 
       - name: Initialize Wine prefix
@@ -31,12 +31,14 @@ jobs:
           xvfb-run -a wine wineboot --init
           sleep 10
 
-      - name: Install VC++ Redistributable (fix CRT for Python)
+      - name: Fix Wine CRT - install native ucrtbase
         run: |
-          # 下载并静默安装 VC++ 2019 Redist（补全 Wine 缺失的 CRT 函数）
-          wget -q https://aka.ms/vs/17/release/vc_redist.x64.exe -O vc_redist.exe
-          xvfb-run -a wine vc_redist.exe /install /quiet /norestart
+          # 用 winetricks 安装原生 ucrtbase 和 vcredist2019
+          # 这会自动设置 DLL override，解决 fetestexcept 等缺失函数
+          WINEARCH=win64 WINEDEBUG=-all xvfb-run -a winetricks vcredist2019
           sleep 5
+          # 验证：检查 native override 是否生效
+          wine reg query "HKLM\Software\Microsoft\Windows NT\CurrentVersion\Windows" /vDllDirectoryViews 2>/dev/null || true
 
       - name: Download and extract embeddable Python
         run: |
