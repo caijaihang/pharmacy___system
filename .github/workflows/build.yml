@@ -10,21 +10,17 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install WineHQ Staging (Wine 9+, CRT 更完整)
+      - name: Install Wine and tools
         run: |
-          sudo dpkg --add-architecture i386
-          sudo mkdir -pm755 /etc/apt/keyrings
-          wget -O - https://dl.winehq.org/wine-builds/winehq.key | gpg --dearmor | sudo tee /etc/apt/keyrings/winehq-archive.key > /dev/null
-          sudo wget -NP /etc/apt/sources.list.d/ https://dl.winehq.org/wine-builds/ubuntu/dists/jammy/winehq-jammy.sources
           sudo apt-get update -qq
-          sudo apt-get install -y -qq --install-recommends winehq-staging xvfb p7zip-full wget
+          sudo apt-get install -y -qq wine64 xvfb p7zip-full wget
           wine --version
 
       - name: Initialize Wine prefix
@@ -94,5 +90,5 @@ jobs:
           echo "|------|----|" >> $GITHUB_STEP_SUMMARY
           echo "| 版本 | v1.0.${{ github.run_number }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Python | ${{ env.PY_VER }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 构建方式 | Ubuntu + WineHQ Staging + Embeddable Python |" >> $GITHUB_STEP_SUMMARY
+          echo "| 构建方式 | Ubuntu 24.04 + Wine 8.x + Embeddable Python |" >> $GITHUB_STEP_SUMMARY
           echo "| 下载 | 右侧 Releases 或下方 Artifacts |" >> $GITHUB_STEP_SUMMARY
