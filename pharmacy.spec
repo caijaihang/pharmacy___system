@@ -22,7 +22,6 @@ a = Analysis(
         'openpyxl.styles',
     ],
     hookspath=[],
-    hooksconfig={},
     runtime_hooks=[os.path.join(PROJECT_ROOT, 'hook-runtime.py')],
     excludes=[
         'tkinter', 'matplotlib', 'scipy', 'IPython', 'jupyter', 'notebook',
@@ -32,8 +31,6 @@ a = Analysis(
         'xmlrpc', 'pydoc_data', 'email', 'antigravity',
     ],
     noarchive=False,
-    optimize=0,
-    cipher=None,
 )
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=None)
@@ -49,7 +46,7 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=False,
+    upx=False,              # <-- 禁用 UPX！这是卡 2 小时的元凶
     upx_exclude=[],
     runtime_tmpdir=None,
     console=False,
