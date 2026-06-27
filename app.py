@@ -1324,6 +1324,158 @@ def proxy_image():
 
 
 # ============================================================
+# 仪表板统计API
+# ============================================================
+@app.route('/api/stats', methods=['GET'])
+def get_stats():
+    """获取仪表板统计数据"""
+    try:
+        db = get_db()
+        cursor = db.cursor()
+
+        # 今日搜索次数
+        today = datetime.datetime.now().strftime('%Y-%m-%d')
+        cursor.execute("SELECT COUNT(*) FROM search_records WHERE date(created_at) = ?", (today,))
+        today_searches = cursor.fetchone()[0]
+
+        # 已查询药品数（去重条码）
+        cursor.execute("SELECT COUNT(DISTINCT barcode) FROM search_records WHERE barcode != ''")
+        total_products = cursor.fetchone()[0]
+
+        # 节省金额：同一条码的最高价与最低价之差累计
+        cursor.execute('''
+            SELECT barcode, MAX(price) as max_price, MIN(price) as min_price
+            FROM price_results
+            WHERE price IS NOT NULL AND price > 0
+            GROUP BY barcode
+        ''')
+        savings = 0
+        for row in cursor.fetchall():
+            max_p, min_p = row[1], row[2]
+            if max_p and min_p and max_p > min_p:
+                savings += (max_p - min_p)
+
+        db.close()
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'today_searches': today_searches,
+                'total_products': total_products,
+                'savings': round(savings, 2)
+            }
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
+# ============================================================
+# 购物车数量更新API
+# ============================================================
+@app.route('/api/cart/update', methods=['POST'])
+def update_cart_quantity():
+    """更新供应商购物车中商品数量"""
+    data = request.get_json()
+    supplier = data.get('supplier', '')
+    item_id = data.get('item_id', '')
+    sku_id = data.get('sku_id', '')
+    quantity = int(data.get('quantity', 1))
+
+    if not supplier or not item_id:
+        return jsonify({'success': False, 'message': '缺少供应商或商品ID'})
+    if quantity < 1:
+        quantity = 1
+
+    try:
+        crawler = PharmacyCrawler()
+
+        if supplier == '俊龙':
+            token = crawler._get_junlong_token()
+            if not token:
+                return jsonify({'success': False, 'message': '俊龙登录失败'})
+
+            session = requests.Session()
+            session.headers.update({
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Accept': 'application/json',
+                'Authorization': f'Bearer {token}',
+                'Content-Type': 'application/json;charset=UTF-8',
+                'Referer': 'http://shop.szsjlyy.com/',
+            })
+
+            cart_data = {
+                'company_id': 6255,
+                'sku_id': sku_id or item_id,
+                'quantity': quantity,
+                'type': 0,
+            }
+            cart_resp = session.post(
+                'https://swoole.86yqy.com/api/order/cart',
+                json=cart_data,
+                timeout=15
+            )
+
+            if cart_resp.status_code in (200, 201):
+                return jsonify({
+                    'success': True,
+                    'message': f'数量已更新为 {quantity}'
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'message': f'更新失败: {cart_resp.status_code}'
+                })
+
+        else:
+            # 庆丰裕系统
+            config = crawler.QFY_SYSTEMS.get(supplier)
+            if not config:
+                return jsonify({'success': False, 'message': f'不支持的供应商: {supplier}'})
+
+            token = crawler._get_qfy_token(supplier)
+            if not token:
+                return jsonify({'success': False, 'message': f'{supplier}登录失败'})
+
+            cached = crawler._qfy_tokens.get(supplier, {})
+            sess = cached.get('session') or requests.Session()
+
+            cart_data = {
+                'token': token,
+                'time': str(int(time.time() * 1000)),
+                'mid': item_id,
+                'buynum': quantity,
+            }
+            cart_resp = sess.post(
+                f"{config['api_url']}/web_addcart.html",
+                data=cart_data,
+                timeout=15
+            )
+            cart_result = cart_resp.json()
+
+            if cart_result.get('status') == 1:
+                return jsonify({
+                    'success': True,
+                    'message': f'数量已更新为 {quantity}'
+                })
+            else:
+                # 可能返回"购物车中已存在"，说明数量未更新
+                msg = cart_result.get('msg', '')
+                if '已存在' in msg or '购物车' in msg:
+                    return jsonify({
+                        'success': False,
+                        'message': f'{supplier}购物车中已存在该商品，请在网站购物车中修改数量'
+                    })
+                return jsonify({
+                    'success': False,
+                    'message': f'更新失败: {msg}'
+                })
+
+    except Exception as e:
+        import traceback
+        return jsonify({'success': False, 'message': f'更新出错: {str(e)}'})
+
+
+# ============================================================
 # 主入口
 # ============================================================
 
