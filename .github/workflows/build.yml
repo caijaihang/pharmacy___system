@@ -21,7 +21,7 @@ jobs:
         run: |
           sudo dpkg --add-architecture i386
           sudo apt-get update -qq
-          sudo apt-get install -y -qq wine64 wine32 winetricks xvfb p7zip-full wget cabextract
+          sudo apt-get install -y -qq wine64 xvfb p7zip-full wget
           wine --version
 
       - name: Initialize Wine prefix
@@ -30,15 +30,6 @@ jobs:
           export WINEDEBUG=-all
           xvfb-run -a wine wineboot --init
           sleep 10
-
-      - name: Fix Wine CRT - install native ucrtbase
-        run: |
-          # 用 winetricks 安装原生 ucrtbase 和 vcredist2019
-          # 这会自动设置 DLL override，解决 fetestexcept 等缺失函数
-          WINEARCH=win64 WINEDEBUG=-all xvfb-run -a winetricks vcredist2019
-          sleep 5
-          # 验证：检查 native override 是否生效
-          wine reg query "HKLM\Software\Microsoft\Windows NT\CurrentVersion\Windows" /vDllDirectoryViews 2>/dev/null || true
 
       - name: Download and extract embeddable Python
         run: |
@@ -64,7 +55,8 @@ jobs:
         run: |
           xvfb-run -a wine C:\\python38\\python.exe -m pip install --upgrade pip
           xvfb-run -a wine C:\\python38\\python.exe -m pip install -r requirements-win.txt
-          xvfb-run -a wine C:\\python38\\python.exe -m pip install pyinstaller
+          # 安装 PyInstaller 5.x（兼容 Wine 6.0，不调用 fetestexcept）
+          xvfb-run -a wine C:\\python38\\python.exe -m pip install pyinstaller==5.13.2
           xvfb-run -a wine C:\\python38\\python.exe -m PyInstaller --version
 
       - name: Build EXE with PyInstaller
