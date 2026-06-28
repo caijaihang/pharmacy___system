@@ -19,7 +19,7 @@ requirements = python3,flask,flask-cors,requests,beautifulsoup4,lxml,pandas,nump
 # Android 配置
 android.api = 30
 android.minapi = 21
-android.ndk = 25c
+android.ndk = 28c
 android.arch = arm64-v8a
 
 # WebView 引导程序
