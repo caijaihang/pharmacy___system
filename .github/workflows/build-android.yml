@@ -60,7 +60,12 @@ jobs:
           unzip -q /tmp/cmdline-tools.zip -d "$ANDROIDSDK/cmdline-tools"
           mv "$ANDROIDSDK/cmdline-tools/cmdline-tools" "$ANDROIDSDK/cmdline-tools/latest"
 
-          export PATH="$ANDROIDSDK/cmdline-tools/latest/bin:$ANDROIDSDK/platform-tools:$PATH"
+          # Buildozer 期望 sdkmanager 在 tools/bin/sdkmanager，创建兼容链接
+          mkdir -p "$ANDROIDSDK/tools/bin"
+          ln -sf "$ANDROIDSDK/cmdline-tools/latest/bin/sdkmanager" "$ANDROIDSDK/tools/bin/sdkmanager"
+          ln -sf "$ANDROIDSDK/cmdline-tools/latest/bin/avdmanager" "$ANDROIDSDK/tools/bin/avdmanager"
+
+          export PATH="$ANDROIDSDK/cmdline-tools/latest/bin:$ANDROIDSDK/platform-tools:$ANDROIDSDK/tools/bin:$PATH"
 
           # 接受所有 license
           yes | sdkmanager --sdk_root="$ANDROIDSDK" --licenses
