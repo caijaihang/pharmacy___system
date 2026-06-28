@@ -1,0 +1,82 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Build Windows EXE"]
+    types: [completed]
+
+permissions:
+  contents: write
+  packages: read
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Buildozer dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            git zip unzip openjdk-17-jdk \
+            autoconf libtool pkg-config \
+            zlib1g-dev libncurses5-dev libncursesw5-dev \
+            libtinfo5 cmake libffi-dev libssl-dev \
+            libltdl-dev libsqlite3-dev \
+            libbz2-dev libreadline-dev \
+            python3-venv python3-dev
+          sudo pip install --upgrade pip buildozer cython virtualenv
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install NDK
+        run: |
+          sdkmanager --install "ndk;25.1.8937393"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/25.1.8937393" >> $GITHUB_ENV
+
+      - name: Build APK with Buildozer
+        run: |
+          buildozer android release 2>&1 | tee build.log
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pharmacy-system-android
+          path: bin/*.apk
+          retention-days: 7
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-v1.0.${{ github.run_number }}
+          name: "药房进货比较系统 Android v1.0.${{ github.run_number }}"
+          body: |
+            ## 药房进货比较系统 - Android 版
+            - 安装 `pharmacy-system-*.apk` 到手机
+            - 无需 Python 环境、无需浏览器
+            - 包含所有网页端功能
+            - 适用 Android 7.0 及以上
+          files: bin/*.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Summary
+        run: |
+          echo "## Android APK 构建完成" >> $GITHUB_STEP_SUMMARY
+          echo "| 项目 | 值 |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|----|" >> $GITHUB_STEP_SUMMARY
+          echo "| 版本 | v1.0.${{ github.run_number }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 构建工具 | Buildozer + python-for-android |" >> $GITHUB_STEP_SUMMARY
+          echo "| 引导程序 | WebView |" >> $GITHUB_STEP_SUMMARY
+          echo "| 下载 | 右侧 Releases 或下方 Artifacts |" >> $GITHUB_STEP_SUMMARY
