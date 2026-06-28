@@ -2,13 +2,13 @@ package com.caijaihang.pharmacycompare;
 
 import android.content.Context;
 import android.util.Log;
-import java.io.File;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import com.chaquo.python.Python;
+import com.chaquo.python.android.AndroidPlatform;
 
 public class PythonServer {
 
@@ -30,11 +30,12 @@ public class PythonServer {
         running = true;
         serverThread = new Thread(() -> {
             try {
-                Python.start(new Python.PythonBuilder(context)
-                    .addNativeLibrary("chaquopy_java")
-                    .build());
+                if (!Python.isStarted()) {
+                    Python.start(new AndroidPlatform(context));
+                }
             } catch (Exception e) {
                 Log.e(TAG, "Python start failed", e);
+                return;
             }
 
             executor.execute(() -> {
@@ -48,7 +49,6 @@ public class PythonServer {
         });
         serverThread.start();
 
-        // 等待服务器就绪
         try { Thread.sleep(3000); } catch (InterruptedException ignored) {}
         return finalPort;
     }
