@@ -48,23 +48,36 @@ jobs:
             python3-venv python3-dev
           pip install --upgrade pip buildozer cython virtualenv
 
-      - name: Install Android SDK & NDK via buildozer
+      - name: Install Android SDK & accept licenses
         run: |
-          # Buildozer 会自动下载 SDK 和 NDK
-          # 只需要先创建目录结构
           mkdir -p ~/.buildozer/android/platform
           export ANDROIDSDK="$HOME/.buildozer/android/platform/android-sdk"
           export ANDROIDNDK="$HOME/.buildozer/android/platform/android-ndk-r25c"
-          echo "SDK will be at: $ANDROIDSDK"
-          echo "NDK will be at: $ANDROIDNDK"
+
+          # 下载 Android SDK command-line tools
+          mkdir -p "$ANDROIDSDK/cmdline-tools"
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O /tmp/cmdline-tools.zip
+          unzip -q /tmp/cmdline-tools.zip -d "$ANDROIDSDK/cmdline-tools"
+          mv "$ANDROIDSDK/cmdline-tools/cmdline-tools" "$ANDROIDSDK/cmdline-tools/latest"
+
+          export PATH="$ANDROIDSDK/cmdline-tools/latest/bin:$ANDROIDSDK/platform-tools:$PATH"
+
+          # 接受所有 license
+          yes | sdkmanager --sdk_root="$ANDROIDSDK" --licenses
+
+          # 安装必要组件
+          sdkmanager --sdk_root="$ANDROIDSDK" "platforms;android-30" "build-tools;30.0.3" "platform-tools"
+
+          echo "ANDROIDSDK=$ANDROIDSDK" >> $GITHUB_ENV
+          echo "ANDROIDNDK=$ANDROIDNDK" >> $GITHUB_ENV
 
       - name: Build APK with Buildozer
         run: |
           export JAVA_HOME=/usr/lib/jvm/temurin-17-jdk-amd64
-          export ANDROIDSDK="$HOME/.buildozer/android/platform/android-sdk"
-          export ANDROIDNDK="$HOME/.buildozer/android/platform/android-ndk-r25c"
           export PATH="$JAVA_HOME/bin:$PATH"
           buildozer android debug 2>&1 | tee build.log
+          echo "=== 查找 APK ==="
+          find . -name "*.apk" -type f 2>/dev/null || echo "未找到 APK"
         timeout-minutes: 80
 
       - name: Upload APK artifact
