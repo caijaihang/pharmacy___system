@@ -13,7 +13,14 @@ from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import requests
 from bs4 import BeautifulSoup
-import pandas as pd
+
+# pandas 可选，Android 上用 openpyxl 替代
+try:
+    import pandas as pd
+    HAS_PANDAS = True
+except ImportError:
+    HAS_PANDAS = False
+    import openpyxl as _opxl
 
 # 日志配置
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -630,45 +637,59 @@ def batch_search():
         return jsonify({'success': False, 'message': '请选择文件'})
 
     try:
-        # 读取Excel文件 - 统一使用openpyxl引擎，避免xlrd版本问题
+        # 读取Excel文件
         filename = file.filename.lower()
         try:
-            if filename.endswith('.xls'):
-                try:
-                    df = pd.read_excel(file, engine='xlrd')
-                except Exception:
-                    file.seek(0)
+            if HAS_PANDAS:
+                if filename.endswith('.xls'):
+                    try:
+                        df = pd.read_excel(file, engine='xlrd')
+                    except Exception:
+                        file.seek(0)
+                        df = pd.read_excel(file, engine='openpyxl')
+                elif filename.endswith('.xlsx'):
                     df = pd.read_excel(file, engine='openpyxl')
-            elif filename.endswith('.xlsx'):
-                df = pd.read_excel(file, engine='openpyxl')
+                else:
+                    df = pd.read_excel(file, engine='openpyxl')
+                # pandas 方式：获取列名和条码
+                columns = list(df.columns)
+                barcode_col = None
+                for col in columns:
+                    col_str = str(col).strip().replace('*', '')
+                    if col_str in ['条码', '条形码', '商品条码', 'barcode', '商品编码', '编码']:
+                        barcode_col = col
+                        break
+                if not barcode_col:
+                    return jsonify({'success': False, 'message': f'Excel文件格式错误，未找到条码列。当前列名：{columns}'})
+                barcodes = []
+                for index, row in df.iterrows():
+                    barcode = str(row[barcode_col]) if pd.notna(row[barcode_col]) else ''
+                    if barcode and barcode.lower() != 'nan':
+                        barcodes.append(barcode)
             else:
-                df = pd.read_excel(file, engine='openpyxl')
+                # openpyxl 方式（无 pandas）
+                wb = _opxl.load_workbook(file, data_only=True)
+                ws = wb.active
+                rows = list(ws.iter_rows(values_only=True))
+                if not rows:
+                    return jsonify({'success': False, 'message': 'Excel文件为空'})
+                header = [str(c).strip().replace('*', '') if c else '' for c in rows[0]]
+                barcode_idx = None
+                for i, col in enumerate(header):
+                    if col in ['条码', '条形码', '商品条码', 'barcode', '商品编码', '编码']:
+                        barcode_idx = i
+                        break
+                if barcode_idx is None:
+                    return jsonify({'success': False, 'message': f'Excel文件格式错误，未找到条码列。当前列名：{header}'})
+                barcodes = []
+                for row in rows[1:]:
+                    if barcode_idx < len(row) and row[barcode_idx]:
+                        barcode = str(row[barcode_idx]).strip()
+                        if barcode and barcode.lower() != 'nan' and barcode.lower() != 'none':
+                            barcodes.append(barcode)
+                wb.close()
         except Exception as read_err:
             return jsonify({'success': False, 'message': f'文件读取失败: {str(read_err)}。请确保上传的是有效的Excel文件(.xls或.xlsx)'})
-
-        # 获取所有列名
-        columns = list(df.columns)
-
-        # 查找条码列
-        barcode_col = None
-        for col in columns:
-            col_str = str(col).strip().replace('*', '')
-            if col_str in ['条码', '条形码', '商品条码', 'barcode', '商品编码', '编码']:
-                barcode_col = col
-                break
-
-        if not barcode_col:
-            return jsonify({
-                'success': False,
-                'message': f'Excel文件格式错误，未找到条码列。当前列名：{columns}'
-            })
-
-        # 收集所有条码
-        barcodes = []
-        for index, row in df.iterrows():
-            barcode = str(row[barcode_col]) if pd.notna(row[barcode_col]) else ''
-            if barcode and barcode.lower() != 'nan':
-                barcodes.append(barcode)
 
         if not barcodes:
             return jsonify({'success': False, 'message': '未找到有效的条码数据'})
