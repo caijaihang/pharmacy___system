@@ -1,0 +1,8 @@
+# Plugin for Chaquopy (Python in Android)
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        maven { url "https://chaquo.com/maven" }
+    }
+}
