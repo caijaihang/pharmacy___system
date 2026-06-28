@@ -8,7 +8,7 @@ import java.net.ServerSocket;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import chaquopy.Python;
+import com.chaquo.python.Python;
 
 public class PythonServer {
 
