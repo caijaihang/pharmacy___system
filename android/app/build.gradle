@@ -21,7 +21,6 @@ android {
     buildTypes {
         release {
             minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 
@@ -34,13 +33,11 @@ android {
 chaquopy {
     defaultConfig {
         pip {
+            // 纯 Python 包，不需要编译 C 扩展
             install "flask==2.2.5"
             install "flask-cors==4.0.0"
             install "requests==2.28.2"
             install "beautifulsoup4==4.12.2"
-            install "lxml"
-            install "pandas==2.0.3"
-            install "numpy"
             install "openpyxl==3.1.2"
             install "xlrd==2.0.1"
             install "certifi"
