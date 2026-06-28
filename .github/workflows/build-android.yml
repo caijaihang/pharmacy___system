@@ -45,6 +45,7 @@ jobs:
             libtinfo5 cmake libffi-dev libssl-dev \
             libltdl-dev libsqlite3-dev \
             libbz2-dev libreadline-dev \
+            gettext autopoint \
             python3-venv python3-dev
           pip install --upgrade pip buildozer cython virtualenv
 
